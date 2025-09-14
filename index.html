@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barcode Scanner Item Counter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .scanner-section {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+
+        .scanner-controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .stop-btn {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+        }
+
+        #scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+            display: none;
+        }
+
+        #scanner {
+            width: 100%;
+            height: 300px;
+            background: #000;
+        }
+
+        #scanner canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        #scanner video {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: cover;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 100px;
+            border: 3px solid #4CAF50;
+            border-radius: 10px;
+            background: rgba(76, 175, 80, 0.1);
+            pointer-events: none;
+        }
+
+        .scanner-overlay::before {
+            content: 'Align barcode here';
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 14px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+        }
+
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .status.ready {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left: 5px solid #4caf50;
+        }
+
+        .status.scanning {
+            background: #fff3e0;
+            color: #ef6c00;
+            border-left: 5px solid #ff9800;
+        }
+
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border-left: 5px solid #4caf50;
+            animation: pulse 0.5s;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .items-section {
+            margin-top: 40px;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+        .items-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .item-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #4CAF50;
+            transition: all 0.3s ease;
+        }
+
+        .item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .item-barcode {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .item-count {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4CAF50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .item-timestamp {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .clear-btn {
+            background: linear-gradient(45deg, #ff5722, #d84315);
+            margin-top: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .manual-input {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .add-btn {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Item Counter</h1>
+        
+        <div class="manual-input">
+            <h3 style="margin-bottom: 15px;">Manual Entry</h3>
+            <div class="input-group">
+                <input type="text" id="manualBarcode" placeholder="Enter barcode manually...">
+                <button class="add-btn" onclick="addManualItem()">Add Item</button>
+            </div>
+        </div>
+
+        <div class="scanner-section">
+            <div class="scanner-controls">
+                <button id="startBtn" onclick="startScanner()">📱 Start Scanner</button>
+                <button id="stopBtn" class="stop-btn" onclick="stopScanner()" disabled>⏹️ Stop Scanner</button>
+            </div>
+            
+            <div id="scanner-container">
+                <div id="scanner"></div>
+                <div class="scanner-overlay"></div>
+            </div>
+            
+            <div id="status" class="status ready">Ready to scan barcodes</div>
+        </div>
+
+        <div class="items-section">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 class="section-title">Scanned Items</h2>
+                <button class="clear-btn" onclick="clearAllItems()">🗑️ Clear All</button>
+            </div>
+            <div id="itemsList" class="items-list">
+                <div class="empty-state">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+                    </svg>
+                    <p>No items scanned yet.<br>Use the scanner or manual entry to add items.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let itemCounts = {};
+        let isScanning = false;
+
+        function updateStatus(message, type = 'ready') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+        }
+
+        function addItem(barcode) {
+            if (!barcode || barcode.trim() === '') return;
+            
+            barcode = barcode.trim();
+            
+            if (!itemCounts[barcode]) {
+                itemCounts[barcode] = {
+                    count: 0,
+                    firstScanned: new Date(),
+                    lastScanned: new Date()
+                };
+            }
+            
+            itemCounts[barcode].count++;
+            itemCounts[barcode].lastScanned = new Date();
+            
+            updateItemsList();
+            updateStatus(`Added: ${barcode} (Count: ${itemCounts[barcode].count})`, 'success');
+            
+            // Clear success message after 2 seconds
+            setTimeout(() => {
+                if (!isScanning) {
+                    updateStatus('Ready to scan barcodes', 'ready');
+                } else {
+                    updateStatus('Scanning... Point camera at barcode', 'scanning');
+                }
+            }, 2000);
+        }
+
+        function addManualItem() {
+            const input = document.getElementById('manualBarcode');
+            const barcode = input.value.trim();
+            
+            if (barcode) {
+                addItem(barcode);
+                input.value = '';
+            }
+        }
+
+        function updateItemsList() {
+            const itemsList = document.getElementById('itemsList');
+            
+            if (Object.keys(itemCounts).length === 0) {
+                itemsList.innerHTML = `
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z"/>
+                        </svg>
+                        <p>No items scanned yet.<br>Use the scanner or manual entry to add items.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort items by count (descending) then by last scanned time
+            const sortedItems = Object.entries(itemCounts).sort((a, b) => {
+                if (b[1].count !== a[1].count) {
+                    return b[1].count - a[1].count;
+                }
+                return new Date(b[1].lastScanned) - new Date(a[1].lastScanned);
+            });
+
+            itemsList.innerHTML = sortedItems.map(([barcode, data]) => `
+                <div class="item-card">
+                    <div class="item-barcode">📦 ${barcode}</div>
+                    <div class="item-count">
+                        <span>${data.count}</span>
+                        <span style="font-size: 0.6em; color: #666;">scans</span>
+                    </div>
+                    <div class="item-timestamp">
+                        First: ${data.firstScanned.toLocaleDateString()} ${data.firstScanned.toLocaleTimeString()}<br>
+                        Last: ${data.lastScanned.toLocaleDateString()} ${data.lastScanned.toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function startScanner() {
+            const scannerContainer = document.getElementById('scanner-container');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            scannerContainer.style.display = 'block';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            isScanning = true;
+            
+            updateStatus('Initializing camera...', 'scanning');
+            
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector('#scanner'),
+                    constraints: {
+                        width: 500,
+                        height: 300,
+                        facingMode: "environment"
+                    }
+                },
+                decoder: {
+                    readers: [
+                        "code_128_reader",
+                        "ean_reader",
+                        "ean_8_reader",
+                        "code_39_reader",
+                        "code_39_vin_reader",
+                        "codabar_reader",
+                        "upc_reader",
+                        "upc_e_reader",
+                        "i2of5_reader"
+                    ]
+                },
+                locate: true,
+                numOfWorkers: 2,
+                frequency: 10,
+            }, function(err) {
+                if (err) {
+                    console.error('Error starting Quagga:', err);
+                    updateStatus('Camera access denied or not available', 'ready');
+                    stopScanner();
+                    return;
+                }
+                console.log("Initialization finished. Ready to start");
+                Quagga.start();
+                updateStatus('Scanning... Point camera at barcode', 'scanning');
+            });
+        }
+
+        function stopScanner() {
+            const scannerContainer = document.getElementById('scanner-container');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            if (isScanning) {
+                Quagga.stop();
+            }
+            
+            scannerContainer.style.display = 'none';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            isScanning = false;
+            
+            updateStatus('Scanner stopped. Ready to scan barcodes', 'ready');
+        }
+
+        function clearAllItems() {
+            if (Object.keys(itemCounts).length === 0) return;
+            
+            if (confirm('Are you sure you want to clear all scanned items? This action cannot be undone.')) {
+                itemCounts = {};
+                updateItemsList();
+                updateStatus('All items cleared', 'ready');
+            }
+        }
+
+        // Set up barcode detection
+        Quagga.onDetected(function(result) {
+            if (!isScanning) return;
+            
+            const barcode = result.codeResult.code;
+            console.log('Detected barcode:', barcode);
+            
+            addItem(barcode);
+        });
+
+        // Handle manual input with Enter key
+        document.getElementById('manualBarcode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addManualItem();
+            }
+        });
+
+        function showCameraHelp() {
+            showPermissionHelp();
+        }
+
+        // Check camera availability on page load
+        async function checkCameraAvailability() {
+            try {
+                // Check if elements exist first
+                const statusDiv = document.getElementById('cameraStatus');
+                const statusText = document.getElementById('cameraStatusText');
+                
+                if (!statusDiv || !statusText) {
+                    console.log('Camera status elements not found, skipping availability check');
+                    return;
+                }
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                if (videoDevices.length > 0) {
+                    statusText.innerHTML = '📹 Camera available';
+                    statusDiv.style.background = 'rgba(76, 175, 80, 0.1)';
+                    statusDiv.style.color = '#2e7d32';
+                } else {
+                    statusText.innerHTML = '📵 No camera detected';
+                    statusDiv.style.background = 'rgba(255, 152, 0, 0.1)';
+                    statusDiv.style.color = '#ef6c00';
+                }
+                
+                statusDiv.style.display = 'inline-flex';
+            } catch (error) {
+                console.log('Error checking camera availability:', error);
+                // Silently fail - this is not critical functionality
+            }
+        }
+
+        // Initialize the display when DOM is ready
+        function initializeApp() {
+            updateItemsList();
+            
+            // Only check camera availability if mediaDevices is supported
+            if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+                checkCameraAvailability();
+            } else {
+                const statusDiv = document.getElementById('cameraStatus');
+                const statusText = document.getElementById('cameraStatusText');
+                
+                if (statusDiv && statusText) {
+                    statusText.innerHTML = '❌ Camera not supported';
+                    statusDiv.style.background = 'rgba(244, 67, 54, 0.1)';
+                    statusDiv.style.color = '#d32f2f';
+                    statusDiv.style.display = 'inline-flex';
+                }
+            }
+        }
+
+        // Wait for DOM to be fully loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
+    </script>
+</body>
+</html>
